@@ -5,7 +5,7 @@ import os, math
 pygame.init()
 size = w, h = 1200, 800
 screen = pygame.display.set_mode(size)
-pygame.display.set_caption("Robots' Shootover")
+pygame.display.set_caption("Robots' Shootover 0.0.2")
 
 pymunk.pygame_util.positive_y_is_up=False
 
@@ -23,6 +23,17 @@ class Line:
             x, y, width, elasticity, friction, color = args
             obj = [None, pymunk.Segment(space.static_body, x, y, width)]
             space.add(obj[1])
+            obj[1].elasticity = elasticity
+            obj[1].friction = friction
+            obj[1].color = [color[0], color[1], color[2], 255]
+        
+        if type == 'dynamic':
+            mass, rela, position, width, elasticity, friction, color = args
+            moment = pymunk.moment_for_segment(mass, rela[0], rela[1], width)
+            body = pymunk.Body(mass, moment)
+            obj = [body, pymunk.Segment(body, rela[0], rela[1], width)]
+            space.add(*obj)
+            obj[0].position = position
             obj[1].elasticity = elasticity
             obj[1].friction = friction
             obj[1].color = [color[0], color[1], color[2], 255]
@@ -149,6 +160,19 @@ def create_block(x, y, sx, sy, color):
     blocks.append([Rect('kinematic', 10, (sx, sy), (x + sx / 2, y + sy / 2), 1, 1, color), sx, sy])
 
 
+def fix_to_bounds(fpos):
+    pos = list(fpos)
+    if pos[0] < 15:
+        pos[0] = 15
+    elif pos[0] > 1185:
+        pos[0] = 1185
+    if pos[1] < 15:
+        pos[1] = 15
+    elif pos[1] > 785:
+        pos[1] = 785
+    return pos
+
+
 all_objects = []
 player_objects = []
 blocks = []
@@ -157,6 +181,7 @@ rope = False
 del_rope = False
 rope_length = 0
 rope_pos = (0, 0)
+targeting = (0, 0)
 
 bullets = []
 
@@ -168,7 +193,8 @@ player_objects.append(Circle('dynamic', 5, 25, (100, 600), 0.2, 100, (0, 0, 255)
 player_objects.append(Rect('dynamic', 0.5, (50, 100), (100, 500), 0.1, 0.2, (0, 0, 255)))
 player_objects.append(Connection('groove', player_objects[1].object[0], player_objects[0].object[0], (0, 50), (0, 100), (0, 0)))
 player_objects.append(Rect('dynamic', 0.5, (10, 50), (100, 525), 0, 0, (0, 0, 0)))
-player_objects.append(Connection('pivot', player_objects[1].object[0], player_objects[3].object[0], (0, 0), (0, -25)))
+player_objects.append(Connection('pivot', player_objects[3].object[0], player_objects[1].object[0], (0, -25), (0, 0)))
+player_objects.append(Connection('slide', player_objects[3].object[0], player_objects[1].object[0], (0, 0), (0, 0), 0, 25))
 create_block(15, 685, 200, 100, (255, 0, 0))
 create_block(985, 685, 200, 100, (0, 255, 0))
 create_block(550, 50, 100, 100, (0, 0, 255))
@@ -289,6 +315,42 @@ while running:
         pygame.draw.line(screen, (100, 100, 100), player_objects[3].object[0].position, rope_pos, 10)
         pygame.draw.circle(screen, (150, 150, 150), player_objects[3].object[0].position, 5)
         pygame.draw.circle(screen, (150, 150, 150), rope_pos, 5)
+    
+    real_pos = pygame.mouse.get_pos()
+    arm_pos = player_objects[3].object[0].position
+    max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
+    offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
+    targeting = (0, 0)
+    go = True
+    s = -1
+    while go:
+        s += 1
+        for block in blocks:
+            block_pos = block[0].object[0].position
+            current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
+            if current_pos[0] >= block_pos[0] - block[1] / 2 and current_pos[0] <= block_pos[0] + block[1] / 2 and current_pos[1] >= block_pos[1] - block[2] / 2 and current_pos[1] <= block_pos[1] + block[2] / 2:
+                targeting = current_pos
+                go = False
+                break
+        
+    player_objects[0].object[0].position = fix_to_bounds(player_objects[0].object[0].position)
+    player_objects[1].object[0].position = fix_to_bounds(player_objects[1].object[0].position)
+    player_objects[3].object[0].position = fix_to_bounds(player_objects[3].object[0].position)
+
+    if not rope:
+        arm_pos = player_objects[3].object[0].position
+        max_s = max(abs(targeting[0] - arm_pos[0]), abs(targeting[1] - arm_pos[1]))
+        if max_s != 0:
+            offset = ((targeting[0] - arm_pos[0]) / max_s, (targeting[1] - arm_pos[1]) / max_s)
+            root = math.sqrt(offset[0] ** 2 + offset[1] ** 2)
+            if root != 0:
+                res = (math.degrees(offset[1] / root) * math.pi + 180) / 2
+                if offset[0] < 0:
+                    res = 360 - res
+                player_objects[3].object[0].angle = math.radians(res + 180)
+                player_objects[3].object[0].angular_velocity = 0
+    
+    pygame.draw.circle(screen, (255, 0, 0), targeting, 10, 4)
 
     clock.tick(fps)
     pygame.display.flip()
