@@ -1,11 +1,11 @@
 import pygame
 import pymunk.pygame_util
-import os, math
+import os, math, random
 
 pygame.init()
 size = w, h = 1200, 800
 screen = pygame.display.set_mode(size)
-pygame.display.set_caption("Robots' Shootover 0.0.2")
+pygame.display.set_caption("Robots' Shootover 0.0.3")
 
 pymunk.pygame_util.positive_y_is_up=False
 
@@ -185,6 +185,11 @@ targeting = (0, 0)
 
 bullets = []
 
+weapon = 0
+WEAPONS = ('Крюк', 'Пистолет', 'Дробовик')
+weapon_reload = 0
+just_shooted = False
+
 blocks.append([Rect('kinematic', 10, (1200, 30), (600, 800), 1, 1, (0, 255, 0)), 1200, 30])
 blocks.append([Rect('kinematic', 10, (30, 800), (0, 400), 1, 1, (0, 255, 0)), 30, 800])
 blocks.append([Rect('kinematic', 10, (30, 800), (1200, 400), 1, 1, (0, 255, 0)), 30, 800])
@@ -207,7 +212,8 @@ player_objects[3].object[1].filter = pymunk.ShapeFilter(group=1)
 move = [False, False, False, False]
 
 clock = pygame.time.Clock()
-fps = 30
+fps = 60
+font = pygame.font.Font(None, 100)
 
 running = True
 
@@ -222,6 +228,18 @@ while running:
                 move[2] = True
             elif event.key == pygame.K_LSHIFT:
                 move[3] = True
+            elif event.key == pygame.K_q:
+                if not rope:
+                    if weapon > 0:
+                        weapon -= 1
+                    else:
+                        weapon = len(WEAPONS) - 1
+            elif event.key == pygame.K_e:
+                if not rope:
+                    if weapon < len(WEAPONS) - 1:
+                        weapon += 1
+                    else:
+                        weapon = 0
         elif event.type == pygame.KEYUP:
             if event.key in (pygame.K_a, pygame.K_d):
                 move[int(event.key == pygame.K_d)] = False
@@ -231,57 +249,101 @@ while running:
                 move[3] = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
-                if not rope:
-                    real_pos = event.pos
-                    arm_pos = player_objects[3].object[0].position
-                    max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
-                    offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
-                    pos = (0, 0)
-                    go = True
-                    s = -1
-                    while go:
-                        s += 1
+                if weapon == 0:
+                    if not rope:
+                        real_pos = event.pos
+                        arm_pos = player_objects[3].object[0].position
+                        max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
+                        offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
+                        pos = (0, 0)
+                        go = True
+                        s = -1
+                        while go:
+                            s += 1
+                            for block in blocks:
+                                block_pos = block[0].object[0].position
+                                current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
+                                if current_pos[0] >= block_pos[0] - block[1] / 2 and current_pos[0] <= block_pos[0] + block[1] / 2 and current_pos[1] >= block_pos[1] - block[2] / 2 and current_pos[1] <= block_pos[1] + block[2] / 2:
+                                    pos = current_pos
+                                    go = False
+                                    break
                         for block in blocks:
                             block_pos = block[0].object[0].position
-                            current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
-                            if current_pos[0] >= block_pos[0] - block[1] / 2 and current_pos[0] <= block_pos[0] + block[1] / 2 and current_pos[1] >= block_pos[1] - block[2] / 2 and current_pos[1] <= block_pos[1] + block[2] / 2:
-                                pos = current_pos
-                                go = False
-                                break
-                    for block in blocks:
-                        block_pos = block[0].object[0].position
-                        if pos[0] >= block_pos[0] - block[1] / 2 and pos[0] <= block_pos[0] + block[1] / 2 and pos[1] >= block_pos[1] - block[2] / 2 and pos[1] <= block_pos[1] + block[2] / 2:
-                            first_point = pos
-                            second_point = player_objects[3].object[0].position
-                            rope_length = int(math.sqrt((first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2))
-                            rope_pos = pos
-                            rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 0), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
-                            created = True
-                            if not del_rope:
-                                del_rope = True
-                else:
+                            if pos[0] >= block_pos[0] - block[1] / 2 and pos[0] <= block_pos[0] + block[1] / 2 and pos[1] >= block_pos[1] - block[2] / 2 and pos[1] <= block_pos[1] + block[2] / 2:
+                                first_point = pos
+                                second_point = player_objects[3].object[0].position
+                                rope_length = int(math.sqrt((first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2))
+                                rope_pos = pos
+                                rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 25), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
+                                created = True
+                                if not del_rope:
+                                    del_rope = True
+                    else:
+                        if del_rope:
+                            space.remove(rope.object)
+                            rope = False
+                elif weapon == 1:
+                    if weapon_reload == 0:
+                        weapon_reload = 20
+                        real_pos = event.pos
+                        arm_pos = player_objects[3].object[0].position
+                        max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
+                        offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
+                        bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
+                        bullets[-1].object[0].velocity = (offset[0] * 2500, offset[1] * 2500)
+                        bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                        player_objects[3].object[0].apply_impulse_at_local_point((0, -750), (0, 25))
+                elif weapon == 2:
+                    if weapon_reload == 0:
+                        weapon_reload = 60
+                        just_shooted = True
+                        real_pos = event.pos
+                        arm_pos = player_objects[3].object[0].position
+                        max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
+                        offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
+                        for _ in range(5):
+                            bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
+                            bullets[-1].object[0].velocity = (offset[0] * 1000 + random.randint(-200, 200), offset[1] * 1000 + random.randint(-200, 200))
+                            bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                        player_objects[3].object[0].apply_impulse_at_local_point((0, -1000), (0, 25))
+                        player_objects[1].object[0].velocity = player_objects[3].object[0].velocity
+                        player_objects[0].object[0].velocity = player_objects[3].object[0].velocity
+            elif event.button == 3:
+                if weapon == 0:
+                    if weapon_reload == 0:
+                        weapon_reload = 30
+                        real_pos = event.pos
+                        arm_pos = player_objects[3].object[0].position
+                        max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
+                        offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
+                        bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
+                        bullets[-1].object[0].velocity = (offset[0] * 1500, offset[1] * 1500)
+                        bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                        player_objects[3].object[0].apply_impulse_at_local_point((0, -500), (0, 25))
+            elif event.button == 4:
+                if weapon == 0:
+                    if rope and rope_length > 0:
+                        rope_length -= min(20, rope_length)
+                        space.remove(rope.object)
+                        rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 25), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
+            elif event.button == 5:
+                if weapon == 0:
+                    if rope and rope_length < 1500:
+                        rope_length += min(20, 1500 - rope_length)
+                        space.remove(rope.object)
+                        rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 25), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                if weapon == 0:
                     if del_rope:
                         space.remove(rope.object)
                         rope = False
-            elif event.button == 3:
-                real_pos = event.pos
-                arm_pos = player_objects[3].object[0].position
-                max_s = max(abs(real_pos[0] - arm_pos[0]), abs(real_pos[1] - arm_pos[1]))
-                offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
-                bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
-                bullets[-1].object[0].velocity = (offset[0] * 1500, offset[1] * 1500)
-                bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
-                player_objects[3].object[0].apply_impulse_at_local_point((0, -500), (0, 25))
-            elif event.button == 4:
-                if rope and rope_length > 0:
-                    rope_length -= min(10, rope_length)
-                    space.remove(rope.object)
-                    rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 0), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
-            elif event.button == 5:
-                if rope and rope_length < 1500:
-                    rope_length += min(10, 1500 - rope_length)
-                    space.remove(rope.object)
-                    rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 0), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
+                elif weapon == 2:
+                    if just_shooted:
+                        just_shooted = False
+                        bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
+                        bullets[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
+                        bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
     screen.fill(pygame.Color('white'))
     space.step(1 / fps)
     
@@ -311,9 +373,17 @@ while running:
 
     space.debug_draw(draw_options)
 
+    arm_pos = player_objects[3].object[0].position
+    real_angle = math.degrees(player_objects[3].object[0].angle) - math.degrees(player_objects[3].object[0].angle) // 360 * 360
+    y = (abs(75 - math.radians((real_angle * 2 - 180) / math.pi) * 25 - 50) - 25) * 2
+    x = 50 - abs(y)
+    if real_angle < 180:
+        x = -x
+    
     if rope:
-        pygame.draw.line(screen, (100, 100, 100), player_objects[3].object[0].position, rope_pos, 10)
-        pygame.draw.circle(screen, (150, 150, 150), player_objects[3].object[0].position, 5)
+        line_pos = (player_objects[3].object[0].position[0] + x / 2, player_objects[3].object[0].position[1] + y / 2)
+        pygame.draw.line(screen, (100, 100, 100), line_pos, rope_pos, 10)
+        pygame.draw.circle(screen, (150, 150, 150), line_pos, 5)
         pygame.draw.circle(screen, (150, 150, 150), rope_pos, 5)
     
     real_pos = pygame.mouse.get_pos()
@@ -350,7 +420,13 @@ while running:
                 player_objects[3].object[0].angle = math.radians(res + 180)
                 player_objects[3].object[0].angular_velocity = 0
     
+    if weapon_reload > 0:
+        weapon_reload -= 1
+    
     pygame.draw.circle(screen, (255, 0, 0), targeting, 10, 4)
+
+    text = font.render(WEAPONS[weapon], True, (0, 0, 0))
+    screen.blit(text, (0, 0))
 
     clock.tick(fps)
     pygame.display.flip()
