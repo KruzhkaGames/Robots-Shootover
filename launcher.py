@@ -5,7 +5,7 @@ import os, math, random
 pygame.init()
 size = w, h = 1200, 800
 screen = pygame.display.set_mode(size)
-pygame.display.set_caption("Robots' Shootover 0.0.3")
+pygame.display.set_caption("Robots' Shootover 0.0.4")
 
 pymunk.pygame_util.positive_y_is_up=False
 
@@ -152,13 +152,18 @@ def circle_collides_flat(x, y, blocks):
     for block in blocks:
         if y + 35 >= block[0].object[0].position[1] - block[2] / 2 and y + 35 <= block[0].object[0].position[1] + block[2] / 2 and x >= block[0].object[0].position[0] - block[1] / 2 and x <= block[0].object[0].position[0] + block[1] / 2:
             return True
+    
+    point = space.point_query_nearest((x, y + 35), 10000, pymunk.ShapeFilter(mask=0b000010))
+    if point is not None:
+        if point.shape in [enemy[0].object[1] for enemy in enemies] and point.distance < 0:
+            return True
         
     return False
 
 def create_block(x, y, sx, sy, color):
     global blocks
     blocks.append([Rect('kinematic', 10, (sx, sy), (x + sx / 2, y + sy / 2), 1, 1, color), sx, sy])
-
+    blocks[-1][0].object[1].filter = pymunk.ShapeFilter(categories=0b010000, mask=0b001111)
 
 def fix_to_bounds(fpos):
     pos = list(fpos)
@@ -172,6 +177,17 @@ def fix_to_bounds(fpos):
         pos[1] = 785
     return pos
 
+def Enemy(x, y):
+    global enemies
+    enemy = []
+    enemy.append(Rect('dynamic', 2, (100, 100), (x, y), 0.1, 0.1, (255, 0, 0)))
+    enemy.append(Rect('dynamic', 1, (10, 50), (x + 50, y + 75), 0.1, 0.1, (0, 0, 0)))
+    enemy.append(Connection('pivot', enemy[0].object[0], enemy[1].object[0], (0, 0), (0, -25)))
+    enemy.append(Connection('slide', enemy[0].object[0], enemy[1].object[0], (0, 0), (0, 0), 0, 25))
+    enemy[0].object[1].filter = pymunk.ShapeFilter(categories=0b000010, mask=0b011011)
+    enemy[1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b000001)
+    enemies.append(enemy)
+
 
 all_objects = []
 player_objects = []
@@ -182,6 +198,8 @@ del_rope = False
 rope_length = 0
 rope_pos = (0, 0)
 targeting = (0, 0)
+is_enemy = False
+enemy_index = -1
 
 bullets = []
 
@@ -205,9 +223,12 @@ create_block(985, 685, 200, 100, (0, 255, 0))
 create_block(550, 50, 100, 100, (0, 0, 255))
 create_block(15, 300, 200, 100, (0, 0, 255))
 
-player_objects[0].object[1].filter = pymunk.ShapeFilter(group=1)
-player_objects[1].object[1].filter = pymunk.ShapeFilter(group=1)
-player_objects[3].object[1].filter = pymunk.ShapeFilter(group=1)
+enemies = []
+for _ in range(10):Enemy(100, 100)
+
+player_objects[0].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
+player_objects[1].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
+player_objects[3].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
 
 move = [False, False, False, False]
 
@@ -258,8 +279,16 @@ while running:
                         pos = (0, 0)
                         go = True
                         s = -1
+                        is_enemy = False
                         while go:
                             s += 1
+                            current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
+                            point = space.point_query_nearest(current_pos, 10000, pymunk.ShapeFilter(mask=0b000010))
+                            if point is not None:
+                                if point.distance < 0 and point.shape in [enemy[0].object[1] for enemy in enemies]:
+                                    pos = current_pos
+                                    go = False
+                                    is_enemy = True
                             for block in blocks:
                                 block_pos = block[0].object[0].position
                                 current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
@@ -267,21 +296,29 @@ while running:
                                     pos = current_pos
                                     go = False
                                     break
-                        for block in blocks:
-                            block_pos = block[0].object[0].position
-                            if pos[0] >= block_pos[0] - block[1] / 2 and pos[0] <= block_pos[0] + block[1] / 2 and pos[1] >= block_pos[1] - block[2] / 2 and pos[1] <= block_pos[1] + block[2] / 2:
-                                first_point = pos
-                                second_point = player_objects[3].object[0].position
-                                rope_length = int(math.sqrt((first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2))
-                                rope_pos = pos
-                                rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 25), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
-                                created = True
-                                if not del_rope:
-                                    del_rope = True
-                    else:
-                        if del_rope:
-                            space.remove(rope.object)
-                            rope = False
+                        if is_enemy:
+                            enemy = [enemy[0].object[1] for enemy in enemies].index(point.shape)
+                            enemy_index = enemy
+                            first_point = enemies[enemy][0].object[0].position
+                            second_point = player_objects[3].object[0].position
+                            rope_length = int(math.sqrt((first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2))
+                            rope_pos = first_point
+                            rope = Connection('slide', player_objects[3].object[0], enemies[enemy][0].object[0], (0, 25), (0, 0), 0, rope_length)
+                            created = True
+                            if not del_rope:
+                                del_rope = True
+                        else:
+                            for block in blocks:
+                                block_pos = block[0].object[0].position
+                                if pos[0] >= block_pos[0] - block[1] / 2 and pos[0] <= block_pos[0] + block[1] / 2 and pos[1] >= block_pos[1] - block[2] / 2 and pos[1] <= block_pos[1] + block[2] / 2:
+                                    first_point = pos
+                                    second_point = player_objects[3].object[0].position
+                                    rope_length = int(math.sqrt((first_point[0] - second_point[0]) ** 2 + (first_point[1] - second_point[1]) ** 2))
+                                    rope_pos = pos
+                                    rope = Connection('slide', player_objects[3].object[0], block[0].object[0], (0, 25), (pos[0] - block_pos[0], pos[1] - block_pos[1]), 0, rope_length)
+                                    created = True
+                                    if not del_rope:
+                                        del_rope = True
                 elif weapon == 1:
                     if weapon_reload == 0:
                         weapon_reload = 20
@@ -291,7 +328,7 @@ while running:
                         offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
                         bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
                         bullets[-1].object[0].velocity = (offset[0] * 2500, offset[1] * 2500)
-                        bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                        bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b000100, mask=0b010000)
                         player_objects[3].object[0].apply_impulse_at_local_point((0, -750), (0, 25))
                 elif weapon == 2:
                     if weapon_reload == 0:
@@ -304,7 +341,7 @@ while running:
                         for _ in range(5):
                             bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
                             bullets[-1].object[0].velocity = (offset[0] * 1000 + random.randint(-200, 200), offset[1] * 1000 + random.randint(-200, 200))
-                            bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                            bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b000100, mask=0b010000)
                         player_objects[3].object[0].apply_impulse_at_local_point((0, -1000), (0, 25))
                         player_objects[1].object[0].velocity = player_objects[3].object[0].velocity
                         player_objects[0].object[0].velocity = player_objects[3].object[0].velocity
@@ -318,7 +355,7 @@ while running:
                         offset = ((real_pos[0] - arm_pos[0]) / max_s, (real_pos[1] - arm_pos[1]) / max_s)
                         bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 255, 0)))
                         bullets[-1].object[0].velocity = (offset[0] * 1500, offset[1] * 1500)
-                        bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                        bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b000100, mask=0b010000)
                         player_objects[3].object[0].apply_impulse_at_local_point((0, -500), (0, 25))
             elif event.button == 4:
                 if weapon == 0:
@@ -335,19 +372,23 @@ while running:
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:
                 if weapon == 0:
-                    if del_rope:
-                        space.remove(rope.object)
-                        rope = False
+                    if rope:
+                        if del_rope:
+                            space.remove(rope.object)
+                            rope = False
                 elif weapon == 2:
                     if just_shooted:
                         just_shooted = False
                         bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
                         bullets[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
-                        bullets[-1].object[1].filter = pymunk.ShapeFilter(group=1)
+                        bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
     screen.fill(pygame.Color('white'))
     space.step(1 / fps)
     
     # simulation
+    if is_enemy:
+        if rope:
+            rope_pos = enemies[enemy][0].object[0].position
     if move[0]:
         player_objects[0].object[0].apply_impulse_at_local_point((-30, 0), (0, -12.5))
         if (player_objects[0].object[0].velocity[0] > -200 and circle_collides_flat(player_objects[0].object[0].position[0], player_objects[0].object[0].position[1], blocks)) or (not circle_collides_flat(player_objects[0].object[0].position[0], player_objects[0].object[0].position[1], blocks)):
@@ -395,9 +436,14 @@ while running:
     s = -1
     while go:
         s += 1
+        current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
+        point = space.point_query_nearest(current_pos, 10000, pymunk.ShapeFilter(mask=0b000010))
+        if point is not None:
+            if point.distance < 0:
+                targeting = current_pos
+                go = False
         for block in blocks:
             block_pos = block[0].object[0].position
-            current_pos = (arm_pos[0] + offset[0] * s, arm_pos[1] + offset[1] * s)
             if current_pos[0] >= block_pos[0] - block[1] / 2 and current_pos[0] <= block_pos[0] + block[1] / 2 and current_pos[1] >= block_pos[1] - block[2] / 2 and current_pos[1] <= block_pos[1] + block[2] / 2:
                 targeting = current_pos
                 go = False
@@ -422,6 +468,30 @@ while running:
     
     if weapon_reload > 0:
         weapon_reload -= 1
+    
+    for bullet in bullets[::-1]:
+        bul_pos = bullet.object[0].position
+        point = space.point_query_nearest(bul_pos, 10000, pymunk.ShapeFilter(mask=0b000010))
+        try:
+            if point is not None:
+                if point.distance < 0 and point.shape in [enemy[0].object[1] for enemy in enemies]:
+                    if abs(bullet.object[0].velocity[0]) + abs(bullet.object[0].velocity[1]) >= 1200:
+                        enemy = [enemy[0].object[1] for enemy in enemies].index(point.shape)
+                        for i in range(2):
+                            space.remove(*enemies[enemy][i].object)
+                        space.remove(enemies[enemy][2].object)
+                        del enemies[enemy]
+                        space.remove(*bullet.object)
+                        del bullets[bullets.index(bullet)]
+                        if rope:
+                            if is_enemy:
+                                if enemy_index == enemy:
+                                    if del_rope:
+                                        space.remove(rope.object)
+                                        rope = False
+                                        enemy_index = -1
+        except AssertionError:
+            pass
     
     pygame.draw.circle(screen, (255, 0, 0), targeting, 10, 4)
 
