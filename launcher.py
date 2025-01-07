@@ -5,7 +5,7 @@ import os, math, random
 pygame.init()
 size = w, h = 1200, 800
 screen = pygame.display.set_mode(size)
-pygame.display.set_caption("Robots' Shootover 0.0.4")
+pygame.display.set_caption("Robots' Shootover 0.0.5")
 
 pymunk.pygame_util.positive_y_is_up=False
 
@@ -163,21 +163,21 @@ def circle_collides_flat(x, y, blocks):
 def create_block(x, y, sx, sy, color):
     global blocks
     blocks.append([Rect('kinematic', 10, (sx, sy), (x + sx / 2, y + sy / 2), 1, 1, color), sx, sy])
-    blocks[-1][0].object[1].filter = pymunk.ShapeFilter(categories=0b010000, mask=0b001111)
+    blocks[-1][0].object[1].filter = pymunk.ShapeFilter(categories=0b010000, mask=0b101111)
 
 def fix_to_bounds(fpos):
     pos = list(fpos)
-    if pos[0] < 15:
-        pos[0] = 15
-    elif pos[0] > 1185:
-        pos[0] = 1185
-    if pos[1] < 15:
-        pos[1] = 15
-    elif pos[1] > 785:
-        pos[1] = 785
+    if pos[0] < 5:
+        pos[0] = 5
+    elif pos[0] > 1195:
+        pos[0] = 1195
+    if pos[1] < 5:
+        pos[1] = 5
+    elif pos[1] > 795:
+        pos[1] = 795 
     return pos
 
-def Enemy(x, y):
+def add_enemy(x, y):
     global enemies
     enemy = []
     enemy.append(Rect('dynamic', 2, (100, 100), (x, y), 0.1, 0.1, (255, 0, 0)))
@@ -185,8 +185,39 @@ def Enemy(x, y):
     enemy.append(Connection('pivot', enemy[0].object[0], enemy[1].object[0], (0, 0), (0, -25)))
     enemy.append(Connection('slide', enemy[0].object[0], enemy[1].object[0], (0, 0), (0, 0), 0, 25))
     enemy[0].object[1].filter = pymunk.ShapeFilter(categories=0b000010, mask=0b011011)
-    enemy[1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b000001)
+    enemy[1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010001)
+    enemy.append([0, 0])
+    enemy.append(180)
     enemies.append(enemy)
+
+levels = [(((5, 205, 200, 100, (150, 150, 150)), (995, 205, 200, 100, (150, 150, 150)), (5, 695, 1190, 100, (200, 200, 200))), ((1045, 105), (1045, 595), (55, 595)), (1175, 595))]
+room = 0
+elevator_door = (0, 0)
+
+def generate_level():
+    global blocks, enemies, player_objects, room, elevator_door, levels, score
+    blocks.append([Rect('kinematic', 10, (1200, 100), (600, 845), 1, 1, (150, 150, 150)), 1200, 100])
+    blocks.append([Rect('kinematic', 10, (100, 800), (-45, 400), 1, 1, (150, 150, 150)), 100, 800])
+    blocks.append([Rect('kinematic', 10, (100, 800), (1245, 400), 1, 1, (150, 150, 150)), 100, 800])
+    blocks.append([Rect('kinematic', 10, (1200, 100), (600, -45), 1, 1, (150, 150, 150)), 1200, 100])
+    player_objects.append(Circle('dynamic', 5, 25, (100, 180), 0.2, 100, (0, 0, 255)))
+    player_objects.append(Rect('dynamic', 0.5, (50, 100), (100, 130), 0.1, 0.2, (0, 0, 255)))
+    player_objects.append(Connection('groove', player_objects[1].object[0], player_objects[0].object[0], (0, 50), (0, 100), (0, 0)))
+    player_objects.append(Rect('dynamic', 0.5, (10, 50), (100, 130), 0, 0, (0, 0, 0)))
+    player_objects.append(Connection('pivot', player_objects[3].object[0], player_objects[1].object[0], (0, -25), (0, 0)))
+    player_objects.append(Connection('slide', player_objects[3].object[0], player_objects[1].object[0], (0, 0), (0, 0), 0, 25))
+    player_objects[0].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
+    player_objects[1].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
+    player_objects[3].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
+    room = random.randint(0, len(levels) - 1)
+    level = levels[room]
+    for block in level[0]:
+        create_block(*block)
+    for enemy in level[1]:
+        add_enemy(*enemy)
+    room += 1
+    elevator_door = level[2]
+
 
 
 all_objects = []
@@ -208,35 +239,20 @@ WEAPONS = ('Крюк', 'Пистолет', 'Дробовик')
 weapon_reload = 0
 just_shooted = False
 
-blocks.append([Rect('kinematic', 10, (1200, 30), (600, 800), 1, 1, (0, 255, 0)), 1200, 30])
-blocks.append([Rect('kinematic', 10, (30, 800), (0, 400), 1, 1, (0, 255, 0)), 30, 800])
-blocks.append([Rect('kinematic', 10, (30, 800), (1200, 400), 1, 1, (0, 255, 0)), 30, 800])
-blocks.append([Rect('kinematic', 10, (1200, 30), (600, 0), 1, 1, (0, 255, 0)), 1200, 30])
-player_objects.append(Circle('dynamic', 5, 25, (100, 600), 0.2, 100, (0, 0, 255)))
-player_objects.append(Rect('dynamic', 0.5, (50, 100), (100, 500), 0.1, 0.2, (0, 0, 255)))
-player_objects.append(Connection('groove', player_objects[1].object[0], player_objects[0].object[0], (0, 50), (0, 100), (0, 0)))
-player_objects.append(Rect('dynamic', 0.5, (10, 50), (100, 525), 0, 0, (0, 0, 0)))
-player_objects.append(Connection('pivot', player_objects[3].object[0], player_objects[1].object[0], (0, -25), (0, 0)))
-player_objects.append(Connection('slide', player_objects[3].object[0], player_objects[1].object[0], (0, 0), (0, 0), 0, 25))
-create_block(15, 685, 200, 100, (255, 0, 0))
-create_block(985, 685, 200, 100, (0, 255, 0))
-create_block(550, 50, 100, 100, (0, 0, 255))
-create_block(15, 300, 200, 100, (0, 0, 255))
-
 enemies = []
-for _ in range(10):Enemy(100, 100)
-
-player_objects[0].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
-player_objects[1].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
-player_objects[3].object[1].filter = pymunk.ShapeFilter(categories=0b000001, mask=0b010010)
+enemy_bullets = []
 
 move = [False, False, False, False]
+player_health = 100
+current_player_health = 100
 
 clock = pygame.time.Clock()
 fps = 60
 font = pygame.font.Font(None, 100)
 
 running = True
+
+generate_level()
 
 while running:
     for event in pygame.event.get():
@@ -379,16 +395,20 @@ while running:
                 elif weapon == 2:
                     if just_shooted:
                         just_shooted = False
-                        bullets.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
-                        bullets[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
-                        bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
+                        all_objects.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
+                        all_objects[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
+                        all_objects[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
     screen.fill(pygame.Color('white'))
     space.step(1 / fps)
+
+    text = font.render(str(room), True, (100, 100, 100))
+    text_size = text.get_size()
+    screen.blit(text, (600 - text_size[0] / 2, 400 - text_size[1] / 2))
     
     # simulation
     if is_enemy:
         if rope:
-            rope_pos = enemies[enemy][0].object[0].position
+            rope_pos = enemies[enemy_index][0].object[0].position
     if move[0]:
         player_objects[0].object[0].apply_impulse_at_local_point((-30, 0), (0, -12.5))
         if (player_objects[0].object[0].velocity[0] > -200 and circle_collides_flat(player_objects[0].object[0].position[0], player_objects[0].object[0].position[1], blocks)) or (not circle_collides_flat(player_objects[0].object[0].position[0], player_objects[0].object[0].position[1], blocks)):
@@ -477,12 +497,19 @@ while running:
                 if point.distance < 0 and point.shape in [enemy[0].object[1] for enemy in enemies]:
                     if abs(bullet.object[0].velocity[0]) + abs(bullet.object[0].velocity[1]) >= 1200:
                         enemy = [enemy[0].object[1] for enemy in enemies].index(point.shape)
+                        posit = enemies[enemy][0].object[0].position
                         for i in range(2):
                             space.remove(*enemies[enemy][i].object)
-                        space.remove(enemies[enemy][2].object)
+                        if enemies[enemy][2] is not None:
+                            space.remove(enemies[enemy][2].object)
+                            space.remove(enemies[enemy][3].object)
                         del enemies[enemy]
                         space.remove(*bullet.object)
                         del bullets[bullets.index(bullet)]
+                        for _ in range(40):
+                            all_objects.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (255, 0, 0)))
+                            all_objects[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
+                            all_objects[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
                         if rope:
                             if is_enemy:
                                 if enemy_index == enemy:
@@ -493,10 +520,68 @@ while running:
         except AssertionError:
             pass
     
+    for enemy in enemies:
+        enemies[enemies.index(enemy)][5] -= 1
+        arm_pos1 = enemies[enemies.index(enemy)][1].object[0].position
+        targeting1 = player_objects[3].object[0].position
+        if enemies[enemies.index(enemy)][2] is not None:
+            max_s1 = max(abs(targeting1[0] - arm_pos1[0]), abs(targeting1[1] - arm_pos1[1]))
+            if max_s1 != 0:
+                offset1 = ((targeting1[0] - arm_pos1[0]) / max_s1, (targeting1[1] - arm_pos1[1]) / max_s1)
+                root1 = math.sqrt(offset[0] ** 2 + offset[1] ** 2)
+                if root1 != 0:
+                    res1 = (math.degrees(offset1[1] / root1) * math.pi + 180) / 2
+                    if offset1[0] < 0:
+                        res1 = 360 - res1
+                    enemies[enemies.index(enemy)][1].object[0].angle = math.radians(res1 + 180)
+                    enemies[enemies.index(enemy)][1].object[0].angular_velocity = 0
+                if enemies[enemies.index(enemy)][5] == 0:
+                    enemies[enemies.index(enemy)][5] = 180
+                    enemy_bullets.append(Circle('dynamic', 5, 5, arm_pos1, 0.2, 0.1, (255, 255, 0)))
+                    enemy_bullets[-1].object[0].velocity = (offset1[0] * 2500, offset1[1] * 2500)
+                    enemy_bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b100000, mask=0b010000)
+        velocity = enemy[0].object[0].velocity
+        last_vel = enemy[4]
+        if enemy[2] is not None:
+            if abs(last_vel[0] - velocity[0]) + abs(last_vel[1] - velocity[1]) > 1200:
+                space.remove(enemy[2].object)
+                space.remove(enemy[3].object)
+                enemies[enemies.index(enemy)][2] = None
+        enemies[enemies.index(enemy)][4] = velocity
+    
+    for bullet in enemy_bullets:
+        bul_pos = bullet.object[0].position
+        point = space.point_query_nearest(bul_pos, 10000, pymunk.ShapeFilter(mask=0b000001))
+        if point is not None:
+            if point.distance < 0 and point.shape in [player_objects[i].object[1] for i in (0, 1, 3)]:
+                if abs(bullet.object[0].velocity[0]) + abs(bullet.object[0].velocity[1]) >= 1200:
+                    player = [player_objects[i].object[1] for i in (0, 1, 3)].index(point.shape)
+                    if player == 2:
+                        player = 3
+                    posit = player_objects[player].object[0].position
+                    player_health -= 20
+                    player_objects[player].object[0].velocity = bullet.object[0].velocity
+                    space.remove(*bullet.object)
+                    del enemy_bullets[enemy_bullets.index(bullet)]
+                    for _ in range(8):
+                        all_objects.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (0, 0, 255)))
+                        all_objects[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
+                        all_objects[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
+    
     pygame.draw.circle(screen, (255, 0, 0), targeting, 10, 4)
 
     text = font.render(WEAPONS[weapon], True, (0, 0, 0))
     screen.blit(text, (0, 0))
+
+    if current_player_health > player_health:
+        current_player_health -= (current_player_health - player_health) / 10
+        current_player_health = round(current_player_health, 2)
+    if current_player_health < 0:
+        current_player_health = 0
+
+    pygame.draw.rect(screen, (0, 0, 0), (800, 0, 400, 40))
+    pygame.draw.rect(screen, (255, 0, 0), (805, 5, 390, 30))
+    pygame.draw.rect(screen, (0, 255, 0), (805, 5, current_player_health * 3.9, 30))
 
     clock.tick(fps)
     pygame.display.flip()
