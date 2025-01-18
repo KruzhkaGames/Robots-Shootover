@@ -5,7 +5,7 @@ import os, math, random
 pygame.init()
 size = w, h = 1200, 800
 screen = pygame.display.set_mode(size)
-pygame.display.set_caption("Robots' Shootover 0.0.5")
+pygame.display.set_caption("Robots' Shootover 0.0.6")
 
 pymunk.pygame_util.positive_y_is_up=False
 
