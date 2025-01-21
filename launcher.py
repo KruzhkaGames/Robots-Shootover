@@ -246,6 +246,8 @@ move = [False, False, False, False]
 player_health = 100
 current_player_health = 100
 
+stuffs = []
+
 clock = pygame.time.Clock()
 fps = 60
 font = pygame.font.Font(None, 100)
@@ -253,6 +255,82 @@ font = pygame.font.Font(None, 100)
 running = True
 
 generate_level()
+
+
+enemies_to_destroy = []
+
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites)
+        self.image = pygame.transform.scale(load_image('robot.png'), (50, 100))
+    
+    def update(self):
+        self.image = pygame.transform.rotate(pygame.transform.flip(pygame.transform.scale(load_image('robot.png'), (50, 100)), player_objects[1].object[0].velocity[0] < 0, False), -math.degrees(player_objects[1].object[0].angle))
+        self.rect = self.image.get_rect(center=player_objects[1].object[0].position)
+
+
+class Wheel(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites)
+        self.image = pygame.transform.scale(load_image('wheel.png'), (50, 50))
+    
+    def update(self):
+        self.image = pygame.transform.rotate(pygame.transform.scale(load_image('wheel.png'), (50, 50)), -math.degrees(player_objects[0].object[0].angle))
+        self.rect = self.image.get_rect(center=player_objects[0].object[0].position)
+
+
+class Gun(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites)
+        self.image = pygame.transform.scale(load_image('grap.png'), (20, 100))
+    
+    def update(self):
+        self.image = pygame.transform.rotate(pygame.transform.flip(pygame.transform.scale(load_image(('grap', 'gun', 'shotgun')[weapon] + '.png'), (20, 100)), math.degrees(player_objects[3].object[0].angle) % 360 < 180, False), -math.degrees(player_objects[3].object[0].angle))
+        self.rect = self.image.get_rect(center=player_objects[3].object[0].position)
+
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, shape):
+        super().__init__(all_sprites)
+        self.image = pygame.transform.scale(load_image('enemy.png'), (100, 100))
+        self.shape = shape
+        self.index = [enemy[0].object[1] for enemy in enemies].index(self.shape)
+    
+    def update(self):
+        if self.index in enemies_to_destroy:
+            all_sprites.remove(self)
+        else:
+            self.index = [enemy[0].object[1] for enemy in enemies].index(self.shape)
+            self.image = pygame.transform.rotate(pygame.transform.flip(pygame.transform.scale(load_image('enemy.png'), (100, 100)), player_objects[1].object[0].position[0] < enemies[self.index][0].object[0].position[0], False), -math.degrees(enemies[self.index][0].object[0].angle))
+            self.rect = self.image.get_rect(center=enemies[self.index][0].object[0].position)
+
+
+class Enemy_gun(pygame.sprite.Sprite):
+    def __init__(self, shape):
+        super().__init__(all_sprites)
+        self.image = pygame.transform.scale(load_image('gun.png'), (20, 100))
+        self.shape = shape
+        self.index = [enemy[1].object[1] for enemy in enemies].index(self.shape)
+    
+    def update(self):
+        if self.index in enemies_to_destroy:
+            all_sprites.remove(self)
+            del enemies_to_destroy[enemies_to_destroy.index(self.index)]
+        else:
+            self.index = [enemy[1].object[1] for enemy in enemies].index(self.shape)
+            self.image = pygame.transform.rotate(pygame.transform.flip(pygame.transform.scale(load_image('gun.png'), (20, 100)), math.degrees(enemies[self.index][1].object[0].angle) % 360 < 180, False), -math.degrees(enemies[self.index][1].object[0].angle))
+            self.rect = self.image.get_rect(center=enemies[self.index][0].object[0].position)
+
+
+all_sprites = pygame.sprite.Group()
+Wheel()
+Player()
+Gun()
+
+for enemy in enemies:
+    Enemy(enemy[0].object[1])
+    Enemy_gun(enemy[1].object[1])
 
 while running:
     for event in pygame.event.get():
@@ -395,11 +473,29 @@ while running:
                 elif weapon == 2:
                     if just_shooted:
                         just_shooted = False
-                        all_objects.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
-                        all_objects[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
-                        all_objects[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
+                        stuffs.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
+                        stuffs[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
+                        stuffs[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
     screen.fill(pygame.Color('white'))
     space.step(1 / fps)
+
+    all_sprites.update()
+    all_sprites.draw(screen)
+
+    for block in blocks:
+        position = list(block[0].object[0].position)
+        position[0] -= block[1] / 2
+        position[1] -= block[2] / 2
+        pygame.draw.rect(screen, block[0].object[1].color[:3], (position[0], position[1], block[1], block[2]))
+    
+    for bullet in bullets:
+        pygame.draw.circle(screen, (255, 255, 0), bullet.object[0].position, 5)
+    
+    for bullet in enemy_bullets:
+        pygame.draw.circle(screen, (255, 255, 0), bullet.object[0].position, 5)
+    
+    for stuff in stuffs:
+        pygame.draw.circle(screen, stuff.object[1].color[:3], stuff.object[0].position, 5)
 
     text = font.render(str(room), True, (100, 100, 100))
     text_size = text.get_size()
@@ -431,8 +527,6 @@ while running:
         if move[2]:
             player_objects[0].object[0].velocity = (player_objects[0].object[0].velocity[0], player_objects[0].object[0].velocity[1] - 1000)
             player_objects[1].object[0].velocity = (player_objects[1].object[0].velocity[0], player_objects[1].object[0].velocity[1] - 1000)
-
-    space.debug_draw(draw_options)
 
     arm_pos = player_objects[3].object[0].position
     real_angle = math.degrees(player_objects[3].object[0].angle) - math.degrees(player_objects[3].object[0].angle) // 360 * 360
@@ -504,12 +598,13 @@ while running:
                             space.remove(enemies[enemy][2].object)
                             space.remove(enemies[enemy][3].object)
                         del enemies[enemy]
+                        enemies_to_destroy.append(enemy)
                         space.remove(*bullet.object)
                         del bullets[bullets.index(bullet)]
                         for _ in range(40):
-                            all_objects.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (255, 0, 0)))
-                            all_objects[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
-                            all_objects[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
+                            stuffs.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (255, 0, 0)))
+                            stuffs[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
+                            stuffs[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
                         if rope:
                             if is_enemy:
                                 if enemy_index == enemy:
@@ -564,9 +659,9 @@ while running:
                     space.remove(*bullet.object)
                     del enemy_bullets[enemy_bullets.index(bullet)]
                     for _ in range(8):
-                        all_objects.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (0, 0, 255)))
-                        all_objects[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
-                        all_objects[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
+                        stuffs.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (0, 0, 255)))
+                        stuffs[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
+                        stuffs[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
     
     pygame.draw.circle(screen, (255, 0, 0), targeting, 10, 4)
 
