@@ -5,7 +5,7 @@ import os, math, random
 pygame.init()
 size = w, h = 1200, 800
 screen = pygame.display.set_mode(size)
-pygame.display.set_caption("Robots' Shootover 0.0.6")
+pygame.display.set_caption("Robots' Shootover 0.0.7")
 
 pymunk.pygame_util.positive_y_is_up=False
 
@@ -238,6 +238,16 @@ weapon = 0
 WEAPONS = ('Крюк', 'Пистолет', 'Дробовик')
 weapon_reload = 0
 just_shooted = False
+shoot_particles = []
+
+auto_slowmo = True
+auto_slowmo_wait = 0
+do_slowmo = False
+slowmo = 1
+current_slowmo = 1
+
+camera_shaking = 0
+last_body_vel = (0, 0)
 
 enemies = []
 enemy_bullets = []
@@ -323,7 +333,21 @@ class Enemy_gun(pygame.sprite.Sprite):
             self.rect = self.image.get_rect(center=enemies[self.index][0].object[0].position)
 
 
+class Slowmo(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(slowmo_group)
+        self.real_im = load_image('slowmo.png')
+        self.image = pygame.transform.scale(self.real_im, (1200, 800))
+    
+    def update(self):
+        self.image = pygame.transform.scale(self.real_im, (1200 * (3 - current_slowmo), 800 * (3 - current_slowmo)))
+        self.rect = self.image.get_rect()
+        self.rect.x = -600 * (2 - current_slowmo)
+        self.rect.y = -400 * (2 - current_slowmo)
+
+
 all_sprites = pygame.sprite.Group()
+slowmo_group = pygame.sprite.Group()
 Wheel()
 Player()
 Gun()
@@ -331,6 +355,8 @@ Gun()
 for enemy in enemies:
     Enemy(enemy[0].object[1])
     Enemy_gun(enemy[1].object[1])
+
+Slowmo()
 
 while running:
     for event in pygame.event.get():
@@ -342,6 +368,8 @@ while running:
             elif event.key == pygame.K_SPACE:
                 move[2] = True
             elif event.key == pygame.K_LSHIFT:
+                do_slowmo = True
+            elif event.key == pygame.K_LCTRL:
                 move[3] = True
             elif event.key == pygame.K_q:
                 if not rope:
@@ -361,6 +389,8 @@ while running:
             elif event.key == pygame.K_SPACE:
                 move[2] = False
             elif event.key == pygame.K_LSHIFT:
+                do_slowmo = False
+            elif event.key == pygame.K_LCTRL:
                 move[3] = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
@@ -424,6 +454,10 @@ while running:
                         bullets[-1].object[0].velocity = (offset[0] * 2500, offset[1] * 2500)
                         bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b000100, mask=0b010000)
                         player_objects[3].object[0].apply_impulse_at_local_point((0, -750), (0, 25))
+                        auto_slowmo_wait = 20
+                        camera_shaking += 10
+                        for _ in range(5):
+                            shoot_particles.append([list(arm_pos), [offset[0] * 10 + random.randint(-5, 5), offset[1] * 10 + random.randint(-5, 5)], (255, random.randint(0, 255), 0), random.randint(0, 5), random.randint(0, 2), random.randint(2, 5)])
                 elif weapon == 2:
                     if weapon_reload == 0:
                         weapon_reload = 60
@@ -439,6 +473,10 @@ while running:
                         player_objects[3].object[0].apply_impulse_at_local_point((0, -1000), (0, 25))
                         player_objects[1].object[0].velocity = player_objects[3].object[0].velocity
                         player_objects[0].object[0].velocity = player_objects[3].object[0].velocity
+                        auto_slowmo_wait = 20
+                        camera_shaking += 20
+                        for _ in range(5):
+                            shoot_particles.append([list(arm_pos), [offset[0] * 10 + random.randint(-5, 5), offset[1] * 10 + random.randint(-5, 5)], (255, random.randint(0, 255), 0), random.randint(0, 5), random.randint(0, 2), random.randint(2, 5)])
             elif event.button == 3:
                 if weapon == 0:
                     if weapon_reload == 0:
@@ -451,6 +489,10 @@ while running:
                         bullets[-1].object[0].velocity = (offset[0] * 1500, offset[1] * 1500)
                         bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b000100, mask=0b010000)
                         player_objects[3].object[0].apply_impulse_at_local_point((0, -500), (0, 25))
+                        auto_slowmo_wait = 20
+                        camera_shaking += 10
+                        for _ in range(5):
+                            shoot_particles.append([list(arm_pos), [offset[0] * 10 + random.randint(-5, 5), offset[1] * 10 + random.randint(-5, 5)], (255, random.randint(0, 255), 0), random.randint(0, 5), random.randint(0, 2), random.randint(2, 5)])
             elif event.button == 4:
                 if weapon == 0:
                     if rope and rope_length > 0:
@@ -496,6 +538,20 @@ while running:
     
     for stuff in stuffs:
         pygame.draw.circle(screen, stuff.object[1].color[:3], stuff.object[0].position, 5)
+    
+    for particle in shoot_particles:
+        particle[5] -= 1
+        particle[0][0] += particle[1][0]
+        particle[0][1] += particle[1][1]
+        particle[1][0] /= 1.2
+        particle[1][1] /= 1.2
+        if particle[5] >= 0:
+            particle[3] += particle[4]
+            pygame.draw.circle(screen, particle[2], particle[0], particle[3])
+        else:
+            pygame.draw.circle(screen, particle[2], particle[0], particle[3] * ((particle[5] + 50) / 50))
+        if particle[5] == -50:
+            del shoot_particles[shoot_particles.index(particle)]
 
     text = font.render(str(room), True, (100, 100, 100))
     text_size = text.get_size()
@@ -655,6 +711,7 @@ while running:
                         player = 3
                     posit = player_objects[player].object[0].position
                     player_health -= 20
+                    camera_shaking += 20
                     player_objects[player].object[0].velocity = bullet.object[0].velocity
                     space.remove(*bullet.object)
                     del enemy_bullets[enemy_bullets.index(bullet)]
@@ -678,6 +735,39 @@ while running:
     pygame.draw.rect(screen, (255, 0, 0), (805, 5, 390, 30))
     pygame.draw.rect(screen, (0, 255, 0), (805, 5, current_player_health * 3.9, 30))
 
-    clock.tick(fps)
+    current_vel = player_objects[3].object[0].velocity
+    if abs(current_vel[0] - last_body_vel[0]) + abs(current_vel[1] - last_body_vel[1]) > 500:
+        camera_shaking += 1
+    last_body_vel = current_vel
+
+    if camera_shaking > 0:
+        real_screen = pygame.Surface(size)
+        real_screen.fill((150, 150, 150))
+        real_screen.blit(screen, (random.randint(-camera_shaking, camera_shaking), random.randint(-camera_shaking, camera_shaking)))
+        camera_shaking -= 1
+        
+        screen.blit(real_screen, (0, 0))
+
+    if do_slowmo:
+        slowmo = 2
+    else:
+        slowmo = 1
+    
+    if auto_slowmo:
+        if not circle_collides_flat(player_objects[0].object[0].position[0], player_objects[0].object[0].position[1], blocks):
+            slowmo = 2
+        if auto_slowmo_wait > 0:
+            slowmo = 2
+            auto_slowmo_wait -= 1
+    
+    current_slowmo += (slowmo - current_slowmo) / 10
+    if str(current_slowmo).split(".")[1][:3] in ("999", "000"):
+        current_slowmo = slowmo
+    
+    if current_slowmo > 1:
+        slowmo_group.update()
+        slowmo_group.draw(screen)
+
+    clock.tick(fps / current_slowmo)
     pygame.display.flip()
 pygame.quit()
