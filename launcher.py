@@ -5,7 +5,7 @@ import os, math, random
 pygame.init()
 screen_size = w, h = 1200, 800
 screen = pygame.display.set_mode(screen_size)
-pygame.display.set_caption("Robots' Shootover 0.0.9")
+pygame.display.set_caption("Robots' Shootover 0.1.0")
 
 pymunk.pygame_util.positive_y_is_up=False
 
@@ -681,6 +681,19 @@ switch_frame = 0
 shop_sizes = [(0, 0), (0, 0), (0, 0)]
 show_fps = False
 
+sounds = {'elevator': pygame.mixer.Sound('data/elevator.mp3'), 'wind': pygame.mixer.Sound('data/wind.mp3'),
+          'shoot': pygame.mixer.Sound('data/shoot.mp3'), 'grap': pygame.mixer.Sound('data/grap.mp3'),
+          'reload': pygame.mixer.Sound('data/reload.mp3'), 'damage': pygame.mixer.Sound('data/damage.mp3'),
+          'glitch': pygame.mixer.Sound('data/glitch.mp3'), 'soundtrack': pygame.mixer.Sound('data/soundtrack.mp3')}
+real_volumes = {'glitch': 0.1, 'grap': 0.3, 'soundtrack': 0.15, 'damage': 0.15, 'reload': 0.3, 'shoot': 0.15, 'wind': 1, 'elevator': 1}
+
+sounds['glitch'].set_volume(0.1)
+sounds['grap'].set_volume(0.3)
+sounds['soundtrack'].set_volume(0.15)
+sounds['damage'].set_volume(0.15)
+sounds['reload'].set_volume(0.3)
+sounds['shoot'].set_volume(0.15)
+
 try:
     with open('data/save.txt') as save:
         data = save.readlines()
@@ -766,6 +779,7 @@ while running:
                                             pos = current_pos
                                             go = False
                                             break
+                                sounds['grap'].play()
                                 if is_enemy:
                                     enemy = [enemy[0].object[1] for enemy in enemies].index(point.shape)
                                     enemy_index = enemy
@@ -791,6 +805,7 @@ while running:
                                                 del_rope = True
                         elif weapon == 1:
                             if weapon_reload == 0 and opened_weapons[1] > 0:
+                                sounds['shoot'].play()
                                 opened_weapons[1] -= 1
                                 weapon_reload = 20
                                 real_pos = event.pos
@@ -807,6 +822,7 @@ while running:
                                     shoot_particles.append([list(arm_pos), [offset[0] * 10 + random.randint(-5, 5), offset[1] * 10 + random.randint(-5, 5)], (255, random.randint(0, 255), 0), random.randint(0, 5), random.randint(0, 2), random.randint(2, 5)])
                         elif weapon == 2:
                             if weapon_reload == 0 and opened_weapons[2] > 0:
+                                sounds['shoot'].play()
                                 opened_weapons[2] -= 1
                                 weapon_reload = 60
                                 just_shooted = True
@@ -828,6 +844,7 @@ while running:
                     elif event.button == 3:
                         if weapon == 0:
                             if weapon_reload == 0:
+                                sounds['shoot'].play()
                                 weapon_reload = 30
                                 real_pos = event.pos
                                 arm_pos = player_objects[3].object[0].position
@@ -867,6 +884,7 @@ while running:
                                 stuffs.append(Circle('dynamic', 5, 5, arm_pos, 0.2, 0.1, (255, 125, 0)))
                                 stuffs[-1].object[0].velocity = (random.randint(-200, 200), random.randint(-1200, -800))
                                 stuffs[-1].object[1].filter = pymunk.ShapeFilter(categories=0b001000, mask=0b010000)
+                                sounds['reload'].play()
         screen.fill(pygame.Color('white'))
 
         if switching_to_level == 0:
@@ -1025,6 +1043,7 @@ while running:
                             enemies_to_destroy.append(enemy)
                             space.remove(*bullet.object)
                             del bullets[bullets.index(bullet)]
+                            sounds['damage'].play()
                             for _ in range(40):
                                 stuffs.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (255, 0, 0)))
                                 stuffs[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
@@ -1060,6 +1079,7 @@ while running:
                             enemy_bullets.append(Circle('dynamic', 5, 5, arm_pos1, 0.2, 0.1, (255, 255, 0)))
                             enemy_bullets[-1].object[0].velocity = (offset1[0] * 2500, offset1[1] * 2500)
                             enemy_bullets[-1].object[1].filter = pymunk.ShapeFilter(categories=0b100000, mask=0b010000)
+                            sounds['shoot'].play()
                 velocity = enemy[0].object[0].velocity
                 last_vel = enemy[4]
                 if enemy[2] is not None:
@@ -1084,6 +1104,7 @@ while running:
                         player_objects[player].object[0].velocity = bullet.object[0].velocity
                         space.remove(*bullet.object)
                         del enemy_bullets[enemy_bullets.index(bullet)]
+                        sounds['damage'].play()
                         for _ in range(int(score * 2 / 2.5 // 1)):
                             stuffs.append(Circle('dynamic', 5, 5, (posit[0] + random.randint(-35, 35), posit[1] + random.randint(-35, 35)), 0.1, 0.1, (0, 0, 255)))
                             stuffs[-1].object[0].velocity = (random.randint(-400, 400), random.randint(-2000, -800))
@@ -1102,8 +1123,9 @@ while running:
         pygame.draw.rect(screen, (0, 255, 0), (805, 5, current_player_health * 3.9, 30))
 
         current_vel = player_objects[3].object[0].velocity
-        if abs(current_vel[0] - last_body_vel[0]) + abs(current_vel[1] - last_body_vel[1]) > 500:
-            camera_shaking += 1
+        real_volumes['wind'] = max(0, (abs(current_vel[0]) + abs(current_vel[1])) / 2500 - 0.5)
+        if abs(current_vel[0] - last_body_vel[0]) + abs(current_vel[1] - last_body_vel[1]) > 1000:
+            camera_shaking += 2
         last_body_vel = current_vel
 
         if camera_shaking > 0:
@@ -1153,11 +1175,20 @@ while running:
         if current_slowmo > 1:
             slowmo_group.update()
             slowmo_group.draw(screen)
+
+        for sound in sounds:
+            sounds[sound].set_volume(real_volumes[sound] / current_slowmo)
+        sounds['soundtrack'].set_volume(real_volumes['soundtrack'] * current_slowmo)
+
+        if random.randint(0, 1) == 0 and real_volumes['wind'] != 0:
+            sounds['wind'].play()
         
         if show_weapons > 0:
             show_weapons -= 1
 
         if len(enemies) == 0:
+            if elevator_door_opening == 0:
+                sounds['elevator'].play(maxtime=750)
             if elevator_door_opening < 200:
                 elevator_door_opening += 10
                 blocks[0][0].object[0].position = (blocks[0][0].object[0].position[0], blocks[0][0].object[0].position[1] - 10)
@@ -1167,6 +1198,7 @@ while running:
             is_elevator = True
         
         if is_elevator and switching == 0 and player_objects[0].object[0].position[0] > 100 and closed_door == False:
+            sounds['elevator'].play(maxtime=750)
             elevator_door_closing = 200
             closed_door = True
         
@@ -1178,6 +1210,7 @@ while running:
             launched_elevator = True
             closing_elevator = 300
             elevator = 1300
+            sounds['elevator'].play(maxtime=11000)
         
         if closing_elevator > 0:
             closing_elevator -= 10
@@ -1253,6 +1286,8 @@ while running:
 
         if switching_to_level < 0:
             switching_to_level += 2
+            if switching_to_level == -30:
+                sounds['elevator'].play(maxtime=750)
             if switching_to_level == 0:
                 elevator_door_opening = 0
                 switching = 0
@@ -1290,6 +1325,7 @@ while running:
                 pos = event.pos
                 if pos[0] > 700 and pos[0] < 1100:
                     if pos[1] > 125 and pos[1] < 275:
+                        sounds['elevator'].play(maxtime=4000)
                         animation = -300
                     elif pos[1] > 325 and pos[1] < 475:
                         gs = 4
@@ -1324,6 +1360,7 @@ while running:
                 grapped_in_menu[0].object[0].position = (grapped_in_menu[0].object[0].position[0] + dx, -50)
         
         if player_objects[1].object[0].position[1] > 600 and not grapped_in_menu:
+            sounds['grap'].play()
             grapped_in_menu = [Rect('kinematic', 10, (50, 50), (player_objects[3].object[0].position[0] + 300, -50), 0.1, 10, (0, 0, 0)), None]
             grapped_in_menu[1] = Connection('slide', grapped_in_menu[0].object[0], player_objects[3].object[0], (0, 0), (0, 0), 0, math.sqrt(90000 + (player_objects[3].object[0].position[1] + 50) ** 2))
         
@@ -1359,14 +1396,14 @@ while running:
             screen.blit(text, (0, 60))
         
         if animation >= 280 and animation < 300:
-            text = font1.render('v0.0.9', True, (200, 200, 200))
+            text = font1.render('v0.1.0', True, (200, 200, 200))
             size = text.get_size()
             screen.blit(text, (1200 - size[0] + size[0] / 20 * (300 - animation), 800 - size[1]))
             text = font1.render('Рекорд: ' + str(highscore), True, (255, 0, 0))
             size = text.get_size()
             screen.blit(text, (0, 800 - size[1] + abs(animation - 300) * 2))
         elif animation == 300 or animation < 0:
-            text = font1.render('v0.0.9', True, (200, 200, 200))
+            text = font1.render('v0.1.0', True, (200, 200, 200))
             size = text.get_size()
             screen.blit(text, (1200 - size[0], 800 - size[1]))
             text = font1.render('Рекорд: ' + str(highscore), True, (255, 0, 0))
@@ -1503,6 +1540,7 @@ while running:
                 all_sprites.draw(screen)
                 if random.randint(0, 1) == 0:
                     all_sprites.update(False)
+                    sounds['glitch'].play()
             elif animation < 200:
                 all_sprites.update(False, True)
                 all_sprites.draw(screen)
@@ -1510,10 +1548,12 @@ while running:
                 all_sprites.draw(screen)
                 if random.randint(0, 1) == 0:
                     all_sprites.update(False)
+                    sounds['glitch'].play()
             elif animation < 220:
                 all_sprites.draw(screen)
                 if random.randint(0, 1) == 0:
                     all_sprites.update(True)
+                    sounds['glitch'].play()
             elif animation < 280:
                 all_sprites.update(True, True)
                 all_sprites.draw(screen)
@@ -1521,6 +1561,7 @@ while running:
                 all_sprites.draw(screen)
                 if random.randint(0, 1) == 0:
                     all_sprites.update(True)
+                    sounds['glitch'].play()
         else:
             kill_sprites = True
             all_sprites.update()
@@ -1789,5 +1830,11 @@ while running:
 
         clock.tick(FPS)
         pygame.display.flip()
+    
+    if not pygame.mixer.get_busy() and gs != 2:
+        sounds['soundtrack'].play()
+    if gs != 0:
+        for sound in sounds:
+            sounds[sound].set_volume(real_volumes[sound])
 
 pygame.quit()
