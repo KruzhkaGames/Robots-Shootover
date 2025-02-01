@@ -1,0 +1,5 @@
+CASH: 0
+HIGHSCORE: 0
+AMMOS: [0, 0, 0]
+AUTO SLOWMO: True
+SHOW FPS: False
